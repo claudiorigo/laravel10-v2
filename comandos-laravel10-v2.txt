@@ -1,0 +1,340 @@
+----- Inicio de proyecto
+# Crear Proyecto con Laravel 10 y PHP 8.1
+laravel new laravel10
+cd laravel10
+# Las convenciones de los Controladores es colocarlos Singular, Kamel case (Igual que los Modelos).
+php artisan make:controller ProjectController -r
+---------------------------------------------------------------------------------------------------
+# 1. Crear helper personalizado, donde creare la función que retorna un metodo con variable.
+app/helper.php
+# 2. Registrarlo en composer.json en "autoload" y agregamos el files
+"autoload": {
+    "psr-4": {
+        // code...
+    },
+    "files": ["app/helpers.php"]
+},
+# 3. Ahora volver a compilar composer para decirle que existe este nuevo cambio, posesionados en el proyecto usamos el siguiente comando.
+composer dumpautoload
+# 4. Recordar que este helpers que creamos esta bajo una class de css, quedando así en la vista blade.
+<li class="{{ setActive('home') }}"><a href="{{ route('home') }}">Home</a></li>
+---------------------------------------------------------------------------------------------------
+# Crearemos formulario en la vista contact y su controlador.
+php artisan make:controller MessageController -r
+---------------------------------------------------------------------------------------------------
+# 1. Cambiar idioma en Laravel, para esto en la carpeta config/app.php cambiamos la localidad de en a es.
+'locale' => 'es',
+# 2. Luego creamos carpeta lang y importamos carpeta es quedando el directorio así: resources/lang/es con los 4 archivos auth.php, pagination.php, passwords.php, validation.php se pueden crear attributes personalisados como por ejemplo: 
+'attributes' => [
+    'name' => 'nombre',    
+],
+# 3. Para personalizar desde el controlador podemos pasar un array con las validaciones así:
+$request->validate([
+    'name' => 'required'
+],
+[  
+    'name.required' => 'Se necesita tú nombre'
+]);
+# 4. Existe una instalación vía composer para agregar!
+---------------------------------------------------------------------------------------------------
+# Crear una instancia de mail para la class mailable, creara nueva carpeta en app/Mail/MessageReceived.php:
+php artisan make:mail MessageReceived
+# Agregamos directorio que manejara el contenido de los correos y luego la creamos ya que esta vista y carpeta no existen.
+public function content(): Content
+{
+    return new Content(
+        view: 'emails.message-received',
+    );
+}
+# Navegamos a el nuevo archivo creado app/Mail/MessageReceived.php, agregamos la carpeta que manejara el contenido de los emails vía html. creamos la carpeta emails en views y el archivo message-received.blade.php quedando así: 
+resources/views/emails/message-received.blade.php
+# En MessagesController importamos las dos clases, la MessageReceived creada y el facade de Laravel Mail. Ya con esto enviamos correo al dueño de la web, recordar configurar archivo .env los datos del correo. (podemos usar log para test en el archivo .env así [BROADCAST_DRIVER=log] que nos mostrara en storage/logs/laravel.log)
+use App\Mail\MessageReceived;
+use Illuminate\Support\Facades\Mail;
+Mail::to('admin-web@gmail.com')->send(new MessageReceived);
+# Configuramos estos dos variables dentro de .env 
+MAIL_FROM_ADDRESS="admin-web@gmail.com"
+MAIL_FROM_NAME="Admin Web"
+# Para cambiar el subject nos dirigimos a el archvio mailable app/Mail/MessageReceived.php usamos el 'metodo function envelope(): Envelope' con el asunto y test en el laravel.log.
+public $subject = 'Mensaje recibido'; // Para Laravel 9
+public function envelope(): Envelope // Para Lavel 10
+{
+    return new Envelope(
+        subject: 'Mensaje recibido admin',
+    );
+}
+# Para enviar los datos a la vista message-received.blade.php se la pasamos por el contructor al metodo Mailable en este caso de nombre $msg y la recivimos en el contructor de la clase.
+public $msg;
+public function __construct($msg){
+    $this->msg = $msg;
+}
+# Recomendación usar queue en vez de send ya que los queue generan procesos en segundo plano para evitar que el usuario tenga que esperar que termine el proceso en este caso el email para obtener una respuesta, queue requiere una configuración adicional pero si no esta configurada usara send por defecto.
+Mail::to('admin-web@gmail.com')->queue(new MessageReceived($msg));
+# Lo más rapido para visualizar el contenido del correo es retornar una instancia del metodo meilable MessageReceived, solo este return alfinal
+return new MessageReceived($msg);
+# La otra opción es Mailtrap y configurar las variables de entornos en el archivo .env de nuestro proyecto.
+https://mailtrap.io/ 
+# Opcional  sendgrid con el plan gatiuto puesdes enviar 40 mil correos en los primeros 30 días ya luego 100 correos diarios por siempre.
+https://sendgrid.com/
+# Si bien Laravel no soporta Sendgrid existe una instalación via composer en github.
+https://github.com/s-ichikawa/laravel-sendgrid-driver
+---------------------------------------------------------------------------------------------------
+# Crear Base de datos vía consola o terminal, -u es 'Usuario' y -p es 'Password' ejemplo: mysql -u root -p Ctx456Yhb como no tengo password lo dejamos en blanco.
+mysql -u root
+# Una vez dentro creamos la base de datos en mi caso el nombre de la base de datos es laravel10 entonces así quedara la creación.
+create database laravel10;
+---------------------------------------------------------------------------------------------------
+# Creamos las migraciones de las tablas por defecto.
+php artisan migrate
+---------------------------------------------------------------------------------------------------
+# Para ejecutar el metodo down usamos el siguiente comando, si la versión anterior tiene datos mantiene esa y lo nuevo lo borra, creara la estructura nuevamente volviendo a la versión anterior.
+php artisan migrate:rollback
+# Para una versión especifica en este caso 1 paso atras.
+php artisan migrate:rollback --step=1
+---------------------------------------------------------------------------------------------------
+# Si queremos crear un nuevo campo en una tabla usamos refresh, este comando crea estructura nuevamente y borra todos los datos de la base de datos, quita todas las tablas y las crea denuevo.
+php artisan migrate:refresh
+---------------------------------------------------------------------------------------------------
+# Aqui sin borrar los datos y hacer cambio a un campo agregar o eliminar una variable de la tabla.
+php artisan make:migration alter_users_table_phone
+php artisan make:migration add_phone_to_users_table
+# Esto nos crea una nueva migración nueva y en esa agregamos los campos nuevos o se lo pasamos directamente si queremos crear un campo nuevo o una tabla:
+php artisan make:migration add_phone_to_users_table --create=nuevatabla
+php artisan make:migration add_phone_to_users_table --table=users
+# Metodo up()
+$table->string('phone)->default('+569');
+$table->string('phone)->nullable();
+$table->string('phone)->after('email')->nullable(); //para que este despues del email el campo phone.
+# Metodo down() lo contrario de agregar.
+$table->dropColumn('phone);
+# Para usar Sqlite para que el dropColumn funcione debemos agregar el paquete:
+composer require doctrine/dbal
+# Luego queda hacer los cambios con el comando migarte, con esto agrega el dato phone y los datos de los usarios permanecen:
+php artisan make:migrate
+---------------------------------------------------------------------------------------------------
+# Crearemos tabla proyecto para este caso guardar los portafolios.
+php artisan make:migration create_projects_table
+# Agregamos estos dos campos al metodo up()
+$table->string('title');
+$table->text('description');
+# Como aun no existen datos generamos un refresh:
+php artisan migrate:fresh
+---------------------------------------------------------------------------------------------------
+# Crear modelo para el controlador Porject creado, el modelo por lo general es singular, primera letra mayuscula o escritura kamel case.
+php artisan make:model Project
+---------------------------------------------------------------------------------------------------
+# ProjectController → metodo index() La paginación por defecto entrega 15 si no le agregamos la cantidad
+$portfolio = Project::orderBy('created_at', 'DESC')->get();
+$portfolio = Project::latest()->get();
+return view('portfolio',[
+    'projects' => Project::latest()->paginate()
+]);
+---------------------------------------------------------------------------------------------------
+# Asignación masiva al crear.
+1.- Si creo con request->all() tengo que protejer con protected los campos que se guardaran masivamente.
+Models →        protected $fillable = ['title', 'url', 'description'];
+Controller →    Project::create(request()->all());
+2.- Si creo un guarded con array vacio puede entrar cualquier varible desde el controllador, solo si lo protejo con only y validando los datos tambien es mejor.
+Models →        protected $guarded = [];
+Controller →    Project::create(request()->only('title', 'url', 'description'));
+3.- En este caso se proteje por validación required, y despúes que se valida se guardan solo esos campos.
+Models →        protected $guarded = [];
+Controller →    
+$fields = request()->validate([
+    'title' => 'required',
+    'url' => 'required',
+    'description' => 'required',
+]);
+Project::create($fields);
+4.- En este caso declaro los campos que no se asignen masivamente, cualquier otro campo que no se encuentre en este array se intentara guardar en la BD osea solo ['title', 'url', 'description'] solo quedaran esos por agregar.
+Models →        protected $guarded = ['id', 'approved', 'created_at', 'updated_at'];
+Controller →    
+$fields = request()->validate([
+    'title' => 'required',
+    'url' => 'required',
+    'description' => 'required',
+]);
+Project::create($fields);
+---------------------------------------------------------------------------------------------------
+# Captura de errores
+1.- Nos devuelve una lista de todos los errores posibles
+@if ($errors->any())
+    <ul>
+        @foreach ($errors->all() as $error)
+            <ul>{{ $error }}</ul>
+        @endforeach
+    </ul>
+@endif
+2.- Nos devuelve el primer error del campo asignado, con name="campo_asignado"
+{!! $errors->first('name', '<small>:message</small><br>') !!}
+3.- Con Bootstrap v5
+@error('name')<span class="invalid-feedback" role="alert"><strong>{{ $message }}</strong></span>@enderror
+---------------------------------------------------------------------------------------------------
+# Usar 'From Request Validation', pensado para validar formularios complejos. Osea las validaciones en otra class para que esten dedicados, como una interfaz.
+# Este se creara en la ruta app/Http/Requests/SaveProjectRequest.php y con el siguiente comando:
+php artisan make:request SaveProjectRequest
+# Todo Form Request consta de dos metodos, authorize() si el usuario que realiza la petición es true pasa y rules()
+# Si no pasa la autorización devuelve un HTTP Response 403 Forbidden (Prohibido). En caso de no tener una logica de validar ejemplo $this->user()->isAdmin() que seria true dejamos true para que cualquiera pueda crear.
+public function authorize(): bool
+{
+    return true;
+}
+# En las reglas, se agregan las validaciones de cada campo y así tendremos una clase dedicada a la validación.
+public function rules(): array
+{
+    return [
+        'title' => 'required',
+        'url' => 'required',
+        'description' => 'required',
+    ];
+}
+# En el controlador importamos y agregamos en la entrada de parametros así.
+use App\Http\Requests\SaveProjectRequest;
+public function store(SaveProjectRequest $request)
+{        
+    Project::create($request->validated());
+
+    return redirect()->route('projects.index');
+}
+---------------------------------------------------------------------------------------------------
+# Comando para listar un route especifico.
+php artisan route:list --name=projects              //name('projects.index');
+php artisan route:list --path=portafolio            //get('/portfolio', [Controller, 'index'])
+---------------------------------------------------------------------------------------------------
+# En este caso los 7 link creados podemos simplificarlos con Route::resource o utilizar de esta manerara.
+Route::get('/portfolio', [ProjectController::class, 'index'])->name('projects.index');
+Route::get('/portfolio/crear', [ProjectController::class, 'create'])->name('projects.create');
+Route::get('/portfolio/{project}/editar', [ProjectController::class, 'edit'])->name('projects.edit');
+Route::put('/portfolio/{project}', [ProjectController::class, 'update'])->name('projects.update');
+Route::post('/portfolio', [ProjectController::class, 'store'])->name('projects.store');
+Route::get('/portfolio/{project}', [ProjectController::class, 'show'])->name('projects.show');
+Route::delete('/portfolio/{project}', [ProjectController::class, 'destroy'])->name('projects.destroy');
+# Aquí simplificamos las 7 rutas con Route::resource.
+Route::resource('portafolio', ProjectController::class)->names('projects')->parameters(['portafolio' => 'project']);
+---------------------------------------------------------------------------------------------------
+# Mensajes de sesión o flask esto son utiles para almacenar un mensaje temporal en la sesión y enviarla a la vista, esta se almacenan en storage/framework/sessions.
+# Esta por defecto esta en 'file' aunque en producción es más rapido y preferible usar "memcached", "redis",
+---------------------------------------------------------------------------------------------------
+# Agregando login y registro
+composer require laravel/ui
+no // Esto no creara la nueva plantilla home y accedemos a login con http://laravel10.test/login
+php artisan ui vue --auth
+npm install
+npm run dev
+# Auth → Registramos nuevo usuario y login
+# En routes/web.php borramos el nuevo redireccion que nos hace de /home ya que no es lo que necesitamos.
+Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');
+# Tambien borramos el controlador en la ruta app/Http/Controllers/HomeController.php
+# Ahora vamos a modificar el comportamiento del registro en app/Providers/RouteServiceProvider.php recordando que este metodo RouteServiceProvider::HOME; proviene de esta ruta, es necesario tambien import su class.  
+# En vez de que nos redireciones a (public const HOME = '/home';) lo dejamos a la raiz (public const HOME = '/';).
+# En nuestra pagina inicial, index o home para ver que ya estamos lodeados y para evitar error si no estamos autenticados usamos la directiva @auth
+@auth
+    {{ auth()->user->name }}
+@endauth
+------------------- Directivas para mostrar contenidos @auth o @guest (invitado) -------------------
+# La directiva @guest (invitado) hace lo contrario de la directiva @auth en este caso si estoy logeado que no muestre este link, Ejemplo de login.
+@guest
+    <li><a href="{{ route('login') }}">Login</a></li>
+@else
+    <li><a href="#" onclick="event.preventDefault(); document.getElementById('logout-form').submit();">Cerrar Sesión</a></li>
+@endguest
+---------------------------------------------------------------------------------------------------
+# La directiva @auth solo invertimos la carga de autenticación pero funciona igual, queda a la logica de uso o reglas de negocio.
+@auth
+    <li><a href="#" onclick="event.preventDefault(); document.getElementById('logout-form').submit();">Cerrar Sesión</a></li>
+@else
+    <li><a href="{{ route('login') }}">Login</a></li>    
+@endauth
+---------------------------------------------------------------------------------------------------
+# Ejemplo de como evitar el uso de rutas en este caso Register, en routes/web.php editamos 'Auth::routes();':
+Auth::routes(['register' => false]);
+---------------------------------------------------------------------------------------------------
+# Middlewares → Protejer las rutas que no queremos que se accedan solo cuando este login, los midleware interceptan y filtran las peticiones HTTP por ejemplo verifica si esta autenticado para aceder a una ruta especifica o multiples con group().
+# Una podria ser a las rutas en routes/web.php en este caso protegiendo las 7 rutas de portafolio, recordando que si no estas logeado la redirección es por app/Http/Middleware/RedirectIfAuthenticated.php 'return redirect(RouteServiceProvider::HOME);'.
+Route::resource('portafolio', ProjectController::class)
+    ->names('projects')
+    ->parameters(['portafolio' => 'project'])
+    ->middleware('auth');
+# only('') → Otra manera es por el controlador en este ejemplo para portafolio app/Http/Controllers/ProjectController.php donde lo declaramos en el constructor, con esto tendremos más flexibilidad de elegir las rutas aquí usaremos el metodo only('') que solo admite las que agreguemos en este metodo, si estas login podras acceder, sino te redirecciona al login, dejando solo protegidas estas dos y las 5 restantes libres.
+public function __construct()
+{
+    $this->middleware('auth')->only('create', 'edit');
+}
+# except('') → Con except usa el metodo de manera contraria quere decir que cualquier usario puede acceder a las que agregemos dentro del metodo except() y las restantes quedan protegidas.
+public function __construct()
+{
+    $this->middleware('auth')->except('index', 'show');
+}
+# Ya solo queda usar la directiva @auth como en el link de login, para ocualtar los link siel usuario no esta autenticado.
+@auth
+    <a href="{{ route('projects.create') }}">Crear Proyecto</a>        
+@endauth
+---------------------------------------------------------------------------------------------------
+# GitHub → Antes de subir al repositorio de github haremos la compilación de los css y js nos podemos dar cuenta que en package.json "build": "vite build" por lo tanto usaremos el siguiente comando para compilar.
+# Estos quedan en public/build/ listo para pasar a producción
+npm run build
+# En el .gitignore que agrega github en el proyecto, veremos que estan ignorados para subir la ruta /public/build entonces importante editar este archivo, borrando esa línea de código que son los archivos staticos de la compilación css y js del proyecto.
+/public/build
+# Recordar la carpeta resources/lang tenemos ñps archivos de traducción respaldar igualmente.
+resources/lang/es
+# Iniciamos el Deploy de nuestra app hacia GitHub.
+1.- Creamos un nuevo repositorio en GitHub  https://github.com/claudiorigo?tab=repositories → New
+- Repository name *
+- Description (optional)
+- Public (Anyone on the internet can see this repository. You choose who can commit.)
+- [DESACTIVADO] Add a README file (This is where you can write a long description for your project. Learn more about READMEs.)
+- [None] Add .gitignore (Choose which files not to track from a list of templates. Learn more about ignoring files.)
+- [None] Choose a license (A license tells others what they can and can't do with your code. Learn more about licenses.)
+- Create repository
+2.- git init                                                                (Los archivos y carpeta del proyecto cambiaran a color verde.)
+3.- git add .                                                               (Agrega todos los archivos, excepto los de .gitignore)
+4.- git commit -m "Deployment comienzo"                                     (Crea punto de guardado)
+5.- git branch -M main                                                      (Nos crea y nos mueve a la branch main, que antes era master)
+6.- git remote add origin https://github.com/claudiorigo/laravel10-v1.git   (Con este link indicamos que este codigo pertenece a este repositorio)
+7.- git push -u origin main                                                 (Subimos todo al branch de main)
+---------------------------------------------------------------------------------------------------
+# Introducción a Laravel Mix
+# Verificamos que este instalado Node con eso tendremos disponible npm.
+node -v
+v18.8.0
+npm -v
+9.2.0
+# Otra manera de usar npm es usar yarn, pero mantengamos con node.
+npm install --global yarn
+# Para cargar las dependencias de "package.json" existen dos maneras de instalarlas y creara la carpeta node_modules en el proyecto.
+1.- Vía comando npm
+npm install
+2.- Vía comando yarn
+yarn
+# Para el nuevo CSS que quisieramos incorporar al final de resources/sass/app.css agregamos el código css y lo mismo para javascript resources/js/app.js 
+# Usa al final de todo el codigo alert('Hello World'); para javascrip y h1 {color: green} con css a modo de test que estan funcionando, luego compila esto se agregara en la compilación final que creara en la carpeta public del proyecto, public/build.
+# Para compilar las dependencias tambien existen las dos maneras, una vez termina, desde la versión Laravel 10 ocupara un compilador [vite] que refrescara automaticamente el navegador en tiempo real si cambias un codigo de color por ejemplo esto solo con dev.
+1.- La primera puede ser npm, igual puede quedar a la escucha con dev aunque si no lo hace cambiamos a watch, si no refleja cambios vaciar cache con F5.
+npm run dev
+npm run watch
+2.- La segundamanera de compilación puede ser por yarn, el watch lo usaremos solo si el dev no queda a a escucha de los cambios.
+yarn dev
+yarn watch
+# Para finalizar cuando ya tienes todo el código listo para producción es importante compilarlo así el codigo css o js el compilador lo minifica [CSS Minifier & Compressor] ósea lo deja en una línea de código.
+npm run build
+yarn buld
+npm run prod
+yarn prod
+# Para actualizar versión de bootstrap eliminamos y cargamos nuevamente solo para desarrollo con --dev, esto lo vemos en el archivo package.json del proyecto.
+yarn remove bootstrap
+yarn add bootstrap --dev
+---------------------------------------------------------------------------------------------------
+php artisan config:clear
+php artisan cache:clear
+php artisan route:clear
+php artisan view:clear
+php artisan route:cache
+php artisan config:cache
+
+php artisan optimize
+---------------------------------------------------------------------------------------------------
+# Pasos Finales para subir a producción:
+npm run build
+git add .
+git commit -m "Frontend con Bootstrap 5"
+git push -u origin main
